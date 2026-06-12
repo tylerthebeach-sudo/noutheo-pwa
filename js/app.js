@@ -71,6 +71,12 @@ const ONBOARDING_STEPS = [
   }
 ];
 
+const VAULT_SECURITY_TEXT = `Everything in your Journal Vault is encrypted and stored in this browser's private storage, protected by your PIN.
+
+If someone else picked up your phone or computer and opened a file manager (or connected it to another device), they would not be able to see, open, or browse these saved sessions — the Vault is not a regular folder and cannot be reached that way.
+
+If you choose to export a session or share it using your device's share menu, that copy leaves the Vault's protection. Please be thoughtful about where you save it and who you share it with.`;
+
 const CHAT_TIPS_TEXT = `A few quick tips before you begin:
 
 • Be specific and honest. Share what is actually going on — names, situations, feelings — rather than a vague summary. The more real you are, the more helpful the conversation will be.
@@ -769,6 +775,9 @@ async function openVault(onUnlock) {
         await DB.setSetting('vaultPin', { saltB64: bufToB64(salt), verifier });
         appState.vaultKey = await deriveKey(pin, salt);
         renderVaultList();
+        // Defer until after this dialog closes — two <dialog> modals open at
+        // once breaks the second one on some browsers (e.g. Android Chrome).
+        setTimeout(showVaultSecurityInfo, 0);
         if (onUnlock) await onUnlock();
       }
     });
@@ -786,6 +795,7 @@ async function openVault(onUnlock) {
         }
         appState.vaultKey = await deriveKey(pin, salt);
         renderVaultList();
+        setTimeout(showVaultSecurityInfo, 0);
         if (onUnlock) await onUnlock();
         return true;
       }
@@ -794,6 +804,11 @@ async function openVault(onUnlock) {
     renderVaultList();
     if (onUnlock) await onUnlock();
   }
+}
+
+function showVaultSecurityInfo() {
+  document.getElementById('vault-security-text').textContent = VAULT_SECURITY_TEXT;
+  document.getElementById('dialog-vault-security').showModal();
 }
 
 function showPinDialog({ title, message, confirm, onSubmit }) {
