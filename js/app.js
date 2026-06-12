@@ -107,13 +107,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindVault();
   bindOnboarding();
 
-  const onboardingDone = await DB.getSetting('onboardingDone', false);
-  if (!onboardingDone) {
-    showOnboarding(0);
-    showScreen('onboarding');
-  } else {
-    showScreen('home');
-  }
+  // Show the onboarding screens on every load/refresh.
+  showOnboarding(0);
+  showScreen('onboarding');
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -141,7 +137,6 @@ function bindOnboarding() {
     if (onboardingStep < ONBOARDING_STEPS.length - 1) {
       showOnboarding(onboardingStep + 1);
     } else {
-      await DB.setSetting('onboardingDone', true);
       showScreen('home');
     }
   });
@@ -284,6 +279,22 @@ function bindSettings() {
     renderChatMessages();
     toast('Conversation history cleared.');
   });
+
+  document.getElementById('settings-clear-all').addEventListener('click', async () => {
+    if (!confirm('Clear ALL data? This deletes your journal, action steps, session quotes, conversation history, and journal vault (including vault PIN). Settings like your name, theme, and relay URL are kept. This cannot be undone.')) return;
+    await Promise.all([
+      DB.clear('journal'),
+      DB.clear('actionItems'),
+      DB.clear('vault'),
+      DB.clear('sessionQuotes'),
+      DB.clear('conversation')
+    ]);
+    await DB.delete('settings', 'vaultPin');
+    appState.vaultKey = null;
+    chatMessages = [];
+    renderChatMessages();
+    toast('All data cleared.');
+  });
 }
 
 // ── CHAT ─────────────────────────────────────────────────────────────────
@@ -328,8 +339,11 @@ function bindChat() {
 
   document.getElementById('vault-title-save').addEventListener('click', async () => {
     const title = document.getElementById('vault-title-input').value.trim() || 'Untitled Session';
-    await saveTranscriptToVault(title);
+    // Close this dialog BEFORE opening the PIN dialog — having two <dialog>
+    // elements open as modals at once breaks the PIN dialog on some browsers
+    // (notably Android Chrome), so the PIN entry silently does nothing.
     document.getElementById('dialog-vault-title').close();
+    await saveTranscriptToVault(title);
   });
 
   document.getElementById('menu-export').addEventListener('click', () => {
@@ -407,6 +421,14 @@ async function sendReaction(positive, idx) {
 async function requestAssistantReply() {
   if (!appState.settings.relay) {
     toast('Set a Relay URL in Settings first.');
+    if (chatMessages.length === 0) {
+      const wrap = document.getElementById('chat-messages');
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble assistant';
+      bubble.textContent = 'Noutheo isn’t connected yet. Go to Settings and enter your Relay URL, then come back and reopen a session.';
+      wrap.innerHTML = '';
+      wrap.appendChild(bubble);
+    }
     return;
   }
   chatBusy = true;
