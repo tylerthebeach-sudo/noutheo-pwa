@@ -923,6 +923,7 @@ async function renderVaultList() {
       const text = await decryptText(r.encrypted);
       document.getElementById('vault-entry-title').textContent = r.title;
       document.getElementById('vault-entry-body').textContent = text;
+      currentVaultEntry = { title: r.title, text };
       showScreen('vault-entry');
     });
     item.querySelector('[data-act="delete"]').addEventListener('click', async () => {
@@ -934,11 +935,78 @@ async function renderVaultList() {
   });
 }
 
+let currentVaultEntry = null;
+
+const VAULT_EXPORT_WARNING = "This will create a copy of this session outside the Journal Vault. That copy will no longer be encrypted or protected by your PIN — anyone with access to the saved or shared file will be able to read it. Continue?";
+
 function bindVault() {
   // Lock the vault key when leaving the vault screens, for basic safety.
   document.querySelectorAll('[data-back="home"]').forEach(el => {
     el.addEventListener('click', () => { appState.vaultKey = null; });
   });
+
+  document.getElementById('vault-entry-export').addEventListener('click', () => {
+    if (!currentVaultEntry) return;
+    if (!confirm(VAULT_EXPORT_WARNING)) return;
+    exportVaultEntryAsDoc(currentVaultEntry.title, currentVaultEntry.text);
+  });
+
+  document.getElementById('vault-entry-share').addEventListener('click', async () => {
+    if (!currentVaultEntry) return;
+    if (!confirm(VAULT_EXPORT_WARNING)) return;
+    await shareVaultEntry(currentVaultEntry.title, currentVaultEntry.text);
+  });
+}
+
+function safeFileName(title) {
+  return (title || 'Noutheo Session').replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 40) || 'Noutheo Session';
+}
+
+function buildVaultDocHtml(title, text) {
+  const body = escapeHtml(text).replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
+  return `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
+<body><h1>${escapeHtml(title)}</h1><p>${body}</p></body></html>`;
+}
+
+function exportVaultEntryAsDoc(title, text) {
+  const html = buildVaultDocHtml(title, text);
+  const blob = new Blob([html], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${safeFileName(title)}.doc`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Exported.');
+}
+
+async function shareVaultEntry(title, text) {
+  const html = buildVaultDocHtml(title, text);
+  const fileName = `${safeFileName(title)}.doc`;
+
+  if (navigator.canShare && typeof File !== 'undefined') {
+    try {
+      const file = new File([html], fileName, { type: 'application/msword' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title });
+        return;
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return; // user cancelled
+    }
+  }
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text });
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+    }
+  }
+
+  toast('Sharing is not supported on this browser — try Export instead.');
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
