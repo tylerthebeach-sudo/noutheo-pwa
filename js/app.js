@@ -54,6 +54,37 @@ Your conversations are stored only on this device (in your browser's local stora
 
 Soli Deo Gloria.`;
 
+const ONBOARDING_STEPS = [
+  {
+    title: 'Welcome to Noutheo',
+    body: 'Noutheo is a biblical counseling companion grounded in the Five Solas and the historic Reformed faith.\n\nThe name comes from νουθετέω — to admonish, instruct, counsel — as Paul used in Colossians 1:28.\n\nThis is not a replacement for your pastor or the body of Christ, but a tool to help you examine your heart by the light of Scripture.',
+    verseText: '“Him we proclaim, warning everyone and teaching everyone with all wisdom, that we may present everyone mature in Christ.”',
+    verseAttribution: '— Colossians 1:28',
+    buttonText: 'Continue'
+  },
+  {
+    title: 'A Word Before We Begin',
+    body: 'This app offers biblical counsel informed by Scripture and biblical theology.\n\nIt is not a substitute for licensed mental health care. If you are in crisis, please contact a pastor, a trusted person, or emergency services immediately.\n\nAll counsel aims at your sanctification and the glory of God — not your comfort alone.',
+    verseText: '“All Scripture is breathed out by God and profitable for doctrine, for reproof, for correction, and for training in righteousness.”',
+    verseAttribution: '— 2 Timothy 3:16',
+    buttonText: 'I Understand'
+  }
+];
+
+const CHAT_TIPS_TEXT = `A few quick tips before you begin:
+
+• Be specific and honest. Share what is actually going on — names, situations, feelings — rather than a vague summary. The more real you are, the more helpful the conversation will be.
+
+• Take your time. This isn't a quiz with one right answer. Good conversations build over several messages, so don't feel you have to say everything at once.
+
+• Answer the question you're asked. Noutheo will often ask one focused question — answering it directly (rather than changing the subject) helps the conversation go deeper.
+
+• Use thumbs up / down. React to a message that resonated or didn't sit right — it helps shape the conversation in the moment.
+
+• Save what matters. Tap "Save to Journal" or "Add Action Step" on any message to hold onto insights or next steps.
+
+Tap "Instructions" on the home screen anytime for a fuller guide.`;
+
 let appState = {
   settings: { name: '', theme: 'system', relay: '' },
   vaultKey: null, // CryptoKey, only held in memory while unlocked
@@ -74,12 +105,47 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindResources();
   bindSettings();
   bindVault();
-  showScreen('home');
+  bindOnboarding();
+
+  const onboardingDone = await DB.getSetting('onboardingDone', false);
+  if (!onboardingDone) {
+    showOnboarding(0);
+    showScreen('onboarding');
+  } else {
+    showScreen('home');
+  }
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 });
+
+// ── Onboarding ───────────────────────────────────────────────────────────
+
+let onboardingStep = 0;
+
+function showOnboarding(step) {
+  onboardingStep = step;
+  const data = ONBOARDING_STEPS[step];
+  document.getElementById('onboarding-step-indicator').textContent = `${step + 1} / ${ONBOARDING_STEPS.length}`;
+  document.getElementById('onboarding-title').textContent = data.title;
+  document.getElementById('onboarding-body').textContent = data.body;
+  const verse = document.getElementById('onboarding-verse');
+  verse.querySelector('.text').textContent = data.verseText;
+  verse.querySelector('.attribution').textContent = data.verseAttribution;
+  document.getElementById('onboarding-continue').textContent = data.buttonText;
+}
+
+function bindOnboarding() {
+  document.getElementById('onboarding-continue').addEventListener('click', async () => {
+    if (onboardingStep < ONBOARDING_STEPS.length - 1) {
+      showOnboarding(onboardingStep + 1);
+    } else {
+      await DB.setSetting('onboardingDone', true);
+      showScreen('home');
+    }
+  });
+}
 
 // ── Settings & theme ─────────────────────────────────────────────────────
 
@@ -162,6 +228,11 @@ function renderHomeQuote() {
 
 async function recordSessionQuote() {
   if (!homeQuoteData) return;
+  const rows = (await DB.getAll('sessionQuotes')).sort((a, b) => b.savedAt - a.savedAt);
+  const last = rows[0];
+  if (last && last.text === homeQuoteData.text && last.attribution === homeQuoteData.attribution) {
+    return; // Don't record the same quote again back-to-back.
+  }
   await DB.add('sessionQuotes', {
     label: homeQuoteData.label,
     text: homeQuoteData.text,
@@ -223,6 +294,8 @@ let chatBusy = false;
 function bindChat() {
   document.querySelector('[data-nav="chat"]').addEventListener('click', async () => {
     await loadChatHistory();
+    document.getElementById('chat-tips-text').textContent = CHAT_TIPS_TEXT;
+    document.getElementById('dialog-chat-tips').showModal();
   });
 
   document.getElementById('chat-send').addEventListener('click', sendChatMessage);
@@ -275,7 +348,7 @@ function bindChat() {
 
 async function loadChatHistory() {
   const rows = await DB.getAll('conversation');
-  chatMessages = rows.sort((a, b) => a.id - b.id).map(r => ({ role: r.role, content: r.content, id: r.id }));
+  chatMessages = rows.sort((a, b) => a.id - b.id).map(r => ({ role: r.role, content: r.content, id: r.id, hidden: r.hidden }));
   renderChatMessages();
   if (chatMessages.length === 0) {
     // Kick off with a greeting prompt from the model.
@@ -287,6 +360,7 @@ function renderChatMessages() {
   const wrap = document.getElementById('chat-messages');
   wrap.innerHTML = '';
   chatMessages.forEach((m, idx) => {
+    if (m.hidden) return;
     const bubble = document.createElement('div');
     bubble.className = 'bubble ' + (m.role === 'user' ? 'user' : 'assistant');
     bubble.textContent = m.content;
@@ -324,7 +398,7 @@ async function sendChatMessage() {
 async function sendReaction(positive, idx) {
   if (chatBusy) return;
   const note = reactionNote(positive);
-  const row = { role: 'user', content: note };
+  const row = { role: 'user', content: note, hidden: true };
   const id = await DB.add('conversation', row);
   chatMessages.push({ ...row, id });
   await requestAssistantReply();
@@ -660,7 +734,7 @@ async function renderSessionQuotes() {
 
 // ── JOURNAL VAULT (PIN + WebCrypto AES-GCM) ─────────────────────────────────
 
-async function openVault() {
+async function openVault(onUnlock) {
   const meta = await DB.getSetting('vaultPin', null);
   if (!meta) {
     showPinDialog({
@@ -673,6 +747,7 @@ async function openVault() {
         await DB.setSetting('vaultPin', { saltB64: bufToB64(salt), verifier });
         appState.vaultKey = await deriveKey(pin, salt);
         renderVaultList();
+        if (onUnlock) await onUnlock();
       }
     });
   } else if (!appState.vaultKey) {
@@ -689,11 +764,13 @@ async function openVault() {
         }
         appState.vaultKey = await deriveKey(pin, salt);
         renderVaultList();
+        if (onUnlock) await onUnlock();
         return true;
       }
     });
   } else {
     renderVaultList();
+    if (onUnlock) await onUnlock();
   }
 }
 
@@ -768,14 +845,17 @@ async function decryptText(payload) {
 
 async function saveTranscriptToVault(title) {
   if (chatMessages.length === 0) { toast('Nothing to save yet.'); return; }
+  const text = transcriptText();
+  const doSave = async () => {
+    const encrypted = await encryptText(text);
+    await DB.add('vault', { title, encrypted, createdAt: Date.now() });
+    toast('Saved to Journal Vault.');
+  };
   if (!appState.vaultKey) {
-    showScreen('vault');
-    await openVault();
-    if (!appState.vaultKey) return;
+    await openVault(doSave);
+  } else {
+    await doSave();
   }
-  const encrypted = await encryptText(transcriptText());
-  await DB.add('vault', { title, encrypted, createdAt: Date.now() });
-  toast('Saved to Journal Vault.');
 }
 
 async function renderVaultList() {
