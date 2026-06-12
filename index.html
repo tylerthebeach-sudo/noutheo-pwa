@@ -182,11 +182,24 @@
     <div class="card">
       <div class="resources-text" id="vault-entry-body"></div>
     </div>
-    <button class="btn" id="vault-entry-export" style="margin-top:16px;">Export as Word Document (.rtf)</button>
-    <button class="btn" id="vault-entry-share" style="margin-top:8px;">Share</button>
+    <button class="btn" id="vault-entry-copy" style="margin-top:16px;">Copy</button>
   </section>
 
 </div>
+
+<dialog id="dialog-name-prompt">
+  <div class="dialog-inner">
+    <h2>Before we begin</h2>
+    <p style="font-size:13px;color:var(--text-secondary);">What should Noutheo call you?</p>
+    <div class="field">
+      <input type="text" id="name-prompt-input" placeholder="Your name (optional)">
+    </div>
+    <div class="dialog-actions">
+      <button id="name-prompt-skip">Skip</button>
+      <button id="name-prompt-save">Let's go</button>
+    </div>
+  </div>
+</dialog>
 
 <dialog id="dialog-chat-tips">
   <div class="dialog-inner">
@@ -235,7 +248,6 @@
     <h2>Menu</h2>
     <button class="btn" id="menu-save-journal">Save to Journal</button>
     <button class="btn" id="menu-save-vault">Save to Journal Vault</button>
-    <button class="btn" id="menu-export">Export Transcript (.txt)</button>
     <button class="btn" id="menu-clear" style="color:var(--error);border-color:var(--error);">Clear / End Session</button>
     <div class="dialog-actions"><button data-close>Close</button></div>
   </div>

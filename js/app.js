@@ -38,11 +38,7 @@ Each time you open the app, you'll see a rotating quote or verse on the home scr
 
 JOURNAL VAULT
 
-The Journal Vault is a private, PIN-protected place to keep full transcripts of your counsel sessions, encrypted on your device. From a chat, tap "Menu" → "Save to Journal Vault."
-
-EXPORTING SESSIONS
-
-From a chat, "Menu" → "Export Transcript" saves the conversation as a text file you can share or store elsewhere.
+The Journal Vault is a private, PIN-protected place to keep full transcripts of your counsel sessions, encrypted on your device. From a chat, tap "Menu" → "Save to Journal Vault." Saved sessions can be copied (for example, to paste into another app), but a reminder will explain that copied text is no longer protected by your PIN.
 
 SETTINGS
 
@@ -75,7 +71,7 @@ const VAULT_SECURITY_TEXT = `Everything in your Journal Vault is encrypted and s
 
 If someone else picked up your phone or computer and opened a file manager (or connected it to another device), they would not be able to see, open, or browse these saved sessions — the Vault is not a regular folder and cannot be reached that way.
 
-If you choose to export a session or share it using your device's share menu, that copy leaves the Vault's protection. Please be thoughtful about where you save it and who you share it with.`;
+If you copy text out of a saved session (to paste into a message, email, or another app), that copy is no longer encrypted or protected by your PIN. Please be thoughtful about what you copy, where you paste it, and who might see it.`;
 
 const CHAT_TIPS_TEXT = `A few quick tips before you begin:
 
@@ -311,9 +307,32 @@ let chatBusy = false;
 function bindChat() {
   document.querySelector('[data-nav="chat"]').addEventListener('click', async () => {
     await loadChatHistory();
-    document.getElementById('chat-tips-text').textContent = CHAT_TIPS_TEXT;
-    document.getElementById('dialog-chat-tips').showModal();
+    if (!appState.settings.name) {
+      document.getElementById('name-prompt-input').value = '';
+      document.getElementById('dialog-name-prompt').showModal();
+    } else {
+      document.getElementById('chat-tips-text').textContent = CHAT_TIPS_TEXT;
+      document.getElementById('dialog-chat-tips').showModal();
+    }
   });
+
+  const finishNamePrompt = async () => {
+    const name = document.getElementById('name-prompt-input').value.trim();
+    if (name) {
+      appState.settings.name = name;
+      await DB.setSetting('userName', name);
+      const settingsNameInput = document.getElementById('settings-name');
+      if (settingsNameInput) settingsNameInput.value = name;
+    }
+    document.getElementById('dialog-name-prompt').close();
+    // Avoid two <dialog> modals open at once — defer the tips dialog.
+    setTimeout(() => {
+      document.getElementById('chat-tips-text').textContent = CHAT_TIPS_TEXT;
+      document.getElementById('dialog-chat-tips').showModal();
+    }, 0);
+  };
+  document.getElementById('name-prompt-save').addEventListener('click', finishNamePrompt);
+  document.getElementById('name-prompt-skip').addEventListener('click', finishNamePrompt);
 
   document.getElementById('chat-send').addEventListener('click', sendChatMessage);
   const input = document.getElementById('chat-input');
@@ -350,11 +369,6 @@ function bindChat() {
     // (notably Android Chrome), so the PIN entry silently does nothing.
     document.getElementById('dialog-vault-title').close();
     await saveTranscriptToVault(title);
-  });
-
-  document.getElementById('menu-export').addEventListener('click', () => {
-    exportTranscript();
-    document.getElementById('dialog-chat-menu').close();
   });
 
   document.getElementById('menu-clear').addEventListener('click', async () => {
@@ -537,17 +551,6 @@ async function saveMessageAsActionStep(content) {
     createdAt: Date.now()
   });
   toast('Added to Action Steps.');
-}
-
-function exportTranscript() {
-  if (chatMessages.length === 0) { toast('Nothing to export yet.'); return; }
-  const blob = new Blob([transcriptText()], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `noutheo-session-${Date.now()}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 // ── JOURNAL ──────────────────────────────────────────────────────────────
@@ -923,7 +926,7 @@ async function renderVaultList() {
       const text = await decryptText(r.encrypted);
       document.getElementById('vault-entry-title').textContent = r.title;
       document.getElementById('vault-entry-body').textContent = text;
-      currentVaultEntry = { title: r.title, text };
+      currentVaultEntryText = text;
       showScreen('vault-entry');
     });
     item.querySelector('[data-act="delete"]').addEventListener('click', async () => {
@@ -935,9 +938,7 @@ async function renderVaultList() {
   });
 }
 
-let currentVaultEntry = null;
-
-const VAULT_EXPORT_WARNING = "This will create a copy of this session outside the Journal Vault. That copy will no longer be encrypted or protected by your PIN — anyone with access to the saved or shared file will be able to read it. Continue?";
+let currentVaultEntryText = null;
 
 function bindVault() {
   // Lock the vault key when leaving the vault screens, for basic safety.
@@ -945,81 +946,10 @@ function bindVault() {
     el.addEventListener('click', () => { appState.vaultKey = null; });
   });
 
-  document.getElementById('vault-entry-export').addEventListener('click', () => {
-    if (!currentVaultEntry) return;
-    if (!confirm(VAULT_EXPORT_WARNING)) return;
-    exportVaultEntryAsDoc(currentVaultEntry.title, currentVaultEntry.text);
+  document.getElementById('vault-entry-copy').addEventListener('click', () => {
+    if (!currentVaultEntryText) return;
+    copyToClipboard(currentVaultEntryText);
   });
-
-  document.getElementById('vault-entry-share').addEventListener('click', async () => {
-    if (!currentVaultEntry) return;
-    if (!confirm(VAULT_EXPORT_WARNING)) return;
-    await shareVaultEntry(currentVaultEntry.title, currentVaultEntry.text);
-  });
-}
-
-function safeFileName(title) {
-  return (title || 'Noutheo Session').replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 40) || 'Noutheo Session';
-}
-
-// Build a real RTF document (not an HTML file disguised with a .doc extension).
-// Android's Word/Docs/WPS viewers check the file's actual format and reject the
-// HTML-as-.doc trick as "corrupt", but RTF is a genuine, widely supported format
-// that opens correctly in Word, Google Docs, and WPS on both desktop and mobile.
-function escapeRtf(text) {
-  let out = '';
-  for (const ch of String(text)) {
-    const code = ch.codePointAt(0);
-    if (ch === '\\' || ch === '{' || ch === '}') {
-      out += '\\' + ch;
-    } else if (ch === '\n') {
-      out += '\\par\n';
-    } else if (ch === '\r') {
-      // skip; \n handles paragraph breaks
-    } else if (code > 126) {
-      out += '\\u' + code + '?';
-    } else {
-      out += ch;
-    }
-  }
-  return out;
-}
-
-function buildVaultRtf(title, text) {
-  return `{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0\\fswiss Helvetica;}{\\f1\\fswiss Helvetica;}}\\f0\\fs32\\b ${escapeRtf(title)}\\b0\\fs24\\par\\par ${escapeRtf(text)}\\par}`;
-}
-
-function exportVaultEntryAsDoc(title, text) {
-  const rtf = buildVaultRtf(title, text);
-  const blob = new Blob([rtf], { type: 'application/rtf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${safeFileName(title)}.rtf`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast('Exported.');
-}
-
-async function shareVaultEntry(title, text) {
-  // Use a plain-text file for sharing — browsers' Web Share API file support
-  // is far more reliable for text/plain than for Word's MIME type, and large
-  // transcripts can exceed the length limit for text-only shares.
-  const fileName = `${safeFileName(title)}.txt`;
-
-  if (navigator.canShare && typeof File !== 'undefined') {
-    try {
-      const file = new File([text], fileName, { type: 'text/plain' });
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title });
-        return;
-      }
-    } catch (err) {
-      if (err && err.name === 'AbortError') return; // user cancelled
-    }
-  }
-
-  toast('Sharing files isn\'t supported on this browser. Use "Export as Word Document" instead, then share the downloaded file from your Files app.');
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
