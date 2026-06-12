@@ -962,51 +962,64 @@ function safeFileName(title) {
   return (title || 'Noutheo Session').replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 40) || 'Noutheo Session';
 }
 
-function buildVaultDocHtml(title, text) {
-  const body = escapeHtml(text).replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
-  return `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-<head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
-<body><h1>${escapeHtml(title)}</h1><p>${body}</p></body></html>`;
+// Build a real RTF document (not an HTML file disguised with a .doc extension).
+// Android's Word/Docs/WPS viewers check the file's actual format and reject the
+// HTML-as-.doc trick as "corrupt", but RTF is a genuine, widely supported format
+// that opens correctly in Word, Google Docs, and WPS on both desktop and mobile.
+function escapeRtf(text) {
+  let out = '';
+  for (const ch of String(text)) {
+    const code = ch.codePointAt(0);
+    if (ch === '\\' || ch === '{' || ch === '}') {
+      out += '\\' + ch;
+    } else if (ch === '\n') {
+      out += '\\par\n';
+    } else if (ch === '\r') {
+      // skip; \n handles paragraph breaks
+    } else if (code > 126) {
+      out += '\\u' + code + '?';
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
+function buildVaultRtf(title, text) {
+  return `{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0\\fswiss Helvetica;}{\\f1\\fswiss Helvetica;}}\\f0\\fs32\\b ${escapeRtf(title)}\\b0\\fs24\\par\\par ${escapeRtf(text)}\\par}`;
 }
 
 function exportVaultEntryAsDoc(title, text) {
-  const html = buildVaultDocHtml(title, text);
-  const blob = new Blob([html], { type: 'application/msword' });
+  const rtf = buildVaultRtf(title, text);
+  const blob = new Blob([rtf], { type: 'application/rtf' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${safeFileName(title)}.doc`;
+  a.download = `${safeFileName(title)}.rtf`;
   a.click();
   URL.revokeObjectURL(url);
   toast('Exported.');
 }
 
 async function shareVaultEntry(title, text) {
-  const html = buildVaultDocHtml(title, text);
-  const fileName = `${safeFileName(title)}.doc`;
+  // Use a plain-text file for sharing — browsers' Web Share API file support
+  // is far more reliable for text/plain than for Word's MIME type, and large
+  // transcripts can exceed the length limit for text-only shares.
+  const fileName = `${safeFileName(title)}.txt`;
 
   if (navigator.canShare && typeof File !== 'undefined') {
     try {
-      const file = new File([html], fileName, { type: 'application/msword' });
+      const file = new File([text], fileName, { type: 'text/plain' });
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title });
         return;
       }
     } catch (err) {
-      if (err.name === 'AbortError') return; // user cancelled
+      if (err && err.name === 'AbortError') return; // user cancelled
     }
   }
 
-  if (navigator.share) {
-    try {
-      await navigator.share({ title, text });
-      return;
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-    }
-  }
-
-  toast('Sharing is not supported on this browser — try Export instead.');
+  toast('Sharing files isn\'t supported on this browser. Use "Export as Word Document" instead, then share the downloaded file from your Files app.');
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
