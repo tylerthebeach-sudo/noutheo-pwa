@@ -14,6 +14,20 @@
 <body>
 <div id="app">
 
+  <!-- ONBOARDING -->
+  <section class="screen hidden" id="screen-onboarding">
+    <div class="toolbar"><h1 id="onboarding-step-indicator">1 / 2</h1></div>
+    <div style="padding-top:8px;">
+      <div class="app-title" id="onboarding-title">Welcome to Noutheo</div>
+      <div class="resources-text card" id="onboarding-body" style="margin-top:16px; padding:16px;"></div>
+      <div class="quote-card" id="onboarding-verse" style="margin-top:16px;">
+        <div class="text"></div>
+        <div class="attribution"></div>
+      </div>
+      <button class="btn btn-filled" id="onboarding-continue" style="margin-top:24px;">Continue</button>
+    </div>
+  </section>
+
   <!-- HOME -->
   <section class="screen" id="screen-home">
     <div class="toolbar"><h1>Noutheo</h1></div>
@@ -114,6 +128,7 @@
     <div class="card">
       <div class="resources-text" id="resources-text"></div>
     </div>
+    <button class="btn" data-back="home" style="margin-top:16px;">Close</button>
     <div class="footer-note">Soli Deo Gloria</div>
   </section>
 
@@ -169,6 +184,14 @@
   </section>
 
 </div>
+
+<dialog id="dialog-chat-tips">
+  <div class="dialog-inner">
+    <h2>Getting the Most from Noutheo</h2>
+    <div class="resources-text" id="chat-tips-text" style="font-size:13px;"></div>
+    <div class="dialog-actions"><button data-close>Got it</button></div>
+  </div>
+</dialog>
 
 <dialog id="dialog-instructions">
   <div class="dialog-inner">
