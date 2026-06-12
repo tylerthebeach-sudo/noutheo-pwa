@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#4A3728">
+<title>Noutheo</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- HOME -->
+  <section class="screen" id="screen-home">
+    <div class="toolbar"><h1>Noutheo</h1></div>
+    <div class="screen" style="padding-top:8px;">
+      <div class="app-title">Noutheo</div>
+      <div class="app-tagline">Biblical Counsel for the Soul</div>
+      <div class="quote-card" id="home-quote">
+        <div class="label"></div>
+        <div class="text"></div>
+        <div class="attribution"></div>
+      </div>
+      <button class="btn btn-filled" data-nav="chat">Begin a Session</button>
+      <button class="btn" data-nav="journal">My Journal</button>
+      <button class="btn" data-nav="action-items">Action Steps</button>
+      <button class="btn" data-nav="session-quotes">Session Quotes</button>
+      <button class="btn" data-nav="resources">Resources</button>
+      <button class="btn" id="btn-instructions">Instructions</button>
+      <button class="btn" data-nav="settings">Settings</button>
+      <button class="btn" data-nav="vault" style="margin-top:8px;">Journal Vault</button>
+    </div>
+  </section>
+
+  <!-- CHAT -->
+  <section class="screen hidden" id="screen-chat">
+    <div class="toolbar">
+      <button class="back-btn" data-back="home">←</button>
+      <h1>Counsel Session</h1>
+      <button class="back-btn" id="btn-chat-menu" style="font-size:14px;">Menu</button>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-input-row">
+      <textarea id="chat-input" rows="1" placeholder="Share what's on your mind..."></textarea>
+      <button id="chat-send">Send</button>
+    </div>
+  </section>
+
+  <!-- JOURNAL LIST -->
+  <section class="screen hidden" id="screen-journal">
+    <div class="toolbar">
+      <button class="back-btn" data-back="home">←</button>
+      <h1>My Journal</h1>
+    </div>
+    <div id="journal-list"></div>
+    <button class="fab" data-nav="journal-entry">+</button>
+  </section>
+
+  <!-- JOURNAL ENTRY -->
+  <section class="screen hidden" id="screen-journal-entry">
+    <div class="toolbar">
+      <button class="back-btn" data-back="journal">←</button>
+      <h1 id="journal-entry-title">New Entry</h1>
+    </div>
+    <div class="field">
+      <label>Title</label>
+      <input type="text" id="je-title" placeholder="Entry title">
+    </div>
+    <div class="field">
+      <label>What's on your heart</label>
+      <textarea id="je-body" rows="8" placeholder="What is God showing you?"></textarea>
+    </div>
+    <div class="field">
+      <label>Verse</label>
+      <input type="text" id="je-verse" placeholder="e.g. Psalm 34:18">
+    </div>
+    <div class="field">
+      <label>Verse text (optional)</label>
+      <textarea id="je-attribution" rows="2" placeholder="Verse text"></textarea>
+    </div>
+    <button class="btn btn-filled" id="je-save">Save Entry</button>
+  </section>
+
+  <!-- ACTION ITEMS -->
+  <section class="screen hidden" id="screen-action-items">
+    <div class="toolbar">
+      <button class="back-btn" data-back="home">←</button>
+      <h1>Action Steps</h1>
+    </div>
+    <div id="action-items-list"></div>
+    <button class="fab" id="btn-add-action">+</button>
+  </section>
+
+  <!-- SESSION QUOTES -->
+  <section class="screen hidden" id="screen-session-quotes">
+    <div class="toolbar">
+      <button class="back-btn" data-back="home">←</button>
+      <h1>Session Quotes</h1>
+    </div>
+    <div id="session-quotes-list"></div>
+  </section>
+
+  <!-- RESOURCES -->
+  <section class="screen hidden" id="screen-resources">
+    <div class="toolbar">
+      <button class="back-btn" data-back="home">←</button>
+      <h1>Resources</h1>
+    </div>
+    <button class="btn" id="btn-five-solas">The Five Solas</button>
+    <div class="card">
+      <div class="resources-text" id="resources-text"></div>
+    </div>
+    <div class="footer-note">Soli Deo Gloria</div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="screen hidden" id="screen-settings">
+    <div class="toolbar">
+      <button class="back-btn" data-back="home">←</button>
+      <h1>Settings</h1>
+    </div>
+    <div class="field">
+      <label>Your name</label>
+      <input type="text" id="settings-name" placeholder="So Noutheo can address you">
+    </div>
+    <div class="field">
+      <label>Theme</label>
+      <select id="settings-theme">
+        <option value="system">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Relay URL (Cloudflare Worker)</label>
+      <input type="text" id="settings-relay" placeholder="https://noutheo-relay.yoursubdomain.workers.dev">
+    </div>
+    <button class="btn btn-filled" id="settings-save">Save Settings</button>
+    <button class="btn" id="settings-clear-history" style="margin-top:24px;">Clear Conversation History</button>
+    <div class="card" style="margin-top:24px;">
+      <strong>About Noutheo</strong>
+      <p style="font-size:13px;line-height:1.6;">Noutheo is built on the conviction that Scripture is sufficient for all of life. The name comes from the Greek &#957;&#959;&#965;&#952;&#949;&#964;&#941;&#969; — to admonish, instruct, counsel — as used in Colossians 1:28.</p>
+      <p style="font-size:12px;font-style:italic;text-align:center;">Soli Deo Gloria.</p>
+    </div>
+  </section>
+
+  <!-- VAULT -->
+  <section class="screen hidden" id="screen-vault">
+    <div class="toolbar">
+      <button class="back-btn" data-back="home">←</button>
+      <h1>Journal Vault</h1>
+    </div>
+    <div id="vault-content"></div>
+  </section>
+
+  <!-- VAULT ENTRY VIEW -->
+  <section class="screen hidden" id="screen-vault-entry">
+    <div class="toolbar">
+      <button class="back-btn" data-back="vault">←</button>
+      <h1 id="vault-entry-title">Session</h1>
+    </div>
+    <div class="card">
+      <div class="resources-text" id="vault-entry-body"></div>
+    </div>
+  </section>
+
+</div>
+
+<dialog id="dialog-instructions">
+  <div class="dialog-inner">
+    <h2>How to Use Noutheo</h2>
+    <div class="resources-text" id="instructions-text" style="font-size:13px;"></div>
+    <div class="dialog-actions"><button data-close>Close</button></div>
+  </div>
+</dialog>
+
+<dialog id="dialog-five-solas">
+  <div class="dialog-inner">
+    <h2>The Five Solas</h2>
+    <div class="resources-text" id="five-solas-text" style="font-size:13px;"></div>
+    <div class="dialog-actions"><button data-close>Close</button></div>
+  </div>
+</dialog>
+
+<dialog id="dialog-action-item">
+  <div class="dialog-inner">
+    <h2 id="ai-dialog-title">New Action Step</h2>
+    <div class="field">
+      <label>Title</label>
+      <input type="text" id="ai-title">
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="ai-notes" rows="3"></textarea>
+    </div>
+    <div class="dialog-actions">
+      <button data-close>Cancel</button>
+      <button id="ai-save">Save</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dialog-chat-menu">
+  <div class="dialog-inner">
+    <h2>Menu</h2>
+    <button class="btn" id="menu-save-journal">Save to Journal</button>
+    <button class="btn" id="menu-save-vault">Save to Journal Vault</button>
+    <button class="btn" id="menu-export">Export Transcript (.txt)</button>
+    <button class="btn" id="menu-clear" style="color:var(--error);border-color:var(--error);">Clear / End Session</button>
+    <div class="dialog-actions"><button data-close>Close</button></div>
+  </div>
+</dialog>
+
+<dialog id="dialog-vault-title">
+  <div class="dialog-inner">
+    <h2>Save to Vault</h2>
+    <div class="field">
+      <label>Title for this session</label>
+      <input type="text" id="vault-title-input" placeholder="e.g. Conversation about anxiety">
+    </div>
+    <div class="dialog-actions">
+      <button data-close>Cancel</button>
+      <button id="vault-title-save">Save</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dialog-pin">
+  <div class="dialog-inner">
+    <h2 id="pin-title">Enter PIN</h2>
+    <p id="pin-message" style="font-size:13px;color:var(--text-secondary);"></p>
+    <div class="field">
+      <input type="password" id="pin-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="4–6 digit PIN">
+    </div>
+    <div class="field" id="pin-confirm-field" style="display:none;">
+      <label>Confirm PIN</label>
+      <input type="password" id="pin-confirm-input" inputmode="numeric" pattern="[0-9]*" maxlength="6">
+    </div>
+    <div class="dialog-actions">
+      <button data-close>Cancel</button>
+      <button id="pin-submit">Unlock</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/quotes.js"></script>
+<script src="js/resources.js"></script>
+<script src="js/db.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
