@@ -1,5 +1,5 @@
 // Noutheo PWA service worker — caches the app shell for offline use / "Add to Home Screen".
-const CACHE_NAME = 'noutheo-shell-v1';
+const CACHE_NAME = 'noutheo-shell-v3';
 const SHELL_FILES = [
   './',
   './index.html',

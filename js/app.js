@@ -104,6 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindChat();
   bindJournal();
   bindActionItems();
+  bindAddActionStepDialog();
   bindResources();
   bindSettings();
   bindVault();
@@ -210,6 +211,27 @@ function toast(msg) {
   setTimeout(() => el.classList.remove('show'), 2200);
 }
 
+// ── Name validation ─────────────────────────────────────────────────────
+// Light check on the "what should Noutheo call you" field — catches obvious
+// profanity/junk so it doesn't get echoed back by the assistant or shown in
+// Settings. Not exhaustive, just a basic guard.
+
+const NAME_BLOCKED_WORDS = [
+  'fuck', 'shit', 'bitch', 'asshole', 'cunt', 'nigger', 'nigga',
+  'faggot', 'fag', 'retard', 'dick', 'pussy', 'bastard', 'whore',
+  'slut', 'cock', 'twat', 'douche', 'piss', 'cum'
+];
+
+const NAME_PATTERN = /^[A-Za-zÀ-ɏ .'-]+$/;
+
+function isAcceptableName(name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return true; // empty is fine — just clears the name
+  if (!NAME_PATTERN.test(trimmed)) return false;
+  const lower = trimmed.toLowerCase();
+  return !NAME_BLOCKED_WORDS.some((w) => lower.includes(w));
+}
+
 // ── HOME ─────────────────────────────────────────────────────────────────
 
 let homeQuoteData = null;
@@ -266,6 +288,10 @@ function bindSettings() {
     const name = document.getElementById('settings-name').value.trim();
     const theme = document.getElementById('settings-theme').value;
     const relay = document.getElementById('settings-relay').value.trim();
+    if (!isAcceptableName(name)) {
+      toast('Please enter a valid name.');
+      return;
+    }
     await DB.setSetting('userName', name);
     await DB.setSetting('theme', theme);
     await DB.setSetting('relayUrl', relay);
@@ -319,6 +345,10 @@ function bindChat() {
   const finishNamePrompt = async () => {
     const name = document.getElementById('name-prompt-input').value.trim();
     if (name) {
+      if (!isAcceptableName(name)) {
+        toast('Please enter a valid name.');
+        return;
+      }
       appState.settings.name = name;
       await DB.setSetting('userName', name);
       const settingsNameInput = document.getElementById('settings-name');
@@ -541,16 +571,29 @@ async function saveMessageToJournal(content) {
   toast('Saved to Journal.');
 }
 
-async function saveMessageAsActionStep(content) {
-  const title = content.length > 60 ? content.slice(0, 57) + '...' : content;
-  await DB.add('actionItems', {
-    title,
-    notes: content,
-    done: false,
-    substeps: [],
-    createdAt: Date.now()
+function saveMessageAsActionStep(content) {
+  const snippet = content.length > 100 ? content.slice(0, 100) + '…' : content;
+  document.getElementById('add-step-context').textContent = `From: "${snippet}"`;
+  document.getElementById('add-step-input').value = '';
+  document.getElementById('add-step-input').dataset.sourceMessage = content;
+  document.getElementById('dialog-add-step').showModal();
+}
+
+function bindAddActionStepDialog() {
+  document.getElementById('add-step-save').addEventListener('click', async () => {
+    const input = document.getElementById('add-step-input');
+    const text = input.value.trim();
+    if (!text) return;
+    await DB.add('actionItems', {
+      title: text,
+      notes: input.dataset.sourceMessage || '',
+      done: false,
+      substeps: [],
+      createdAt: Date.now()
+    });
+    document.getElementById('dialog-add-step').close();
+    toast('Added to Action Steps.');
   });
-  toast('Added to Action Steps.');
 }
 
 // ── JOURNAL ──────────────────────────────────────────────────────────────

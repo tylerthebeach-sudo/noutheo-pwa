@@ -1,0 +1,4 @@
+Cloudflare:
+worker name: noutheo-relay		
+deployed at https://noutheo-relay.little-bar-ac51.workers.dev
+https://tylerthebeach-sudo.github.io/noutheo-pwa/
