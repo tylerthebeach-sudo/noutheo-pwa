@@ -196,10 +196,13 @@ function reactionNote(positive) {
  * Sends the conversation to the Cloudflare Worker relay, which holds the Anthropic API key.
  * `relayUrl` is configured in Settings.
  */
-async function sendMessageToRelay(relayUrl, conversationHistory, systemPrompt) {
+async function sendMessageToRelay(relayUrl, conversationHistory, systemPrompt, relaySecret = '') {
+  const headers = { 'content-type': 'application/json' };
+  if (relaySecret) headers['x-noutheo-secret'] = relaySecret;
+
   const response = await fetch(relayUrl, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: JSON.stringify({ system: systemPrompt, messages: conversationHistory })
   });
 

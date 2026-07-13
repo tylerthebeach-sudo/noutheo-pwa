@@ -30,7 +30,7 @@ export default {
     const corsHeaders = {
       'Access-Control-Allow-Origin': allowedOrigin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'content-type'
+      'Access-Control-Allow-Headers': 'content-type, x-noutheo-secret'
     };
 
     if (request.method === 'OPTIONS') {
@@ -40,6 +40,16 @@ export default {
     if (request.method !== 'POST') {
       return new Response(JSON.stringify({ error: 'Method not allowed' }), {
         status: 405,
+        headers: { 'content-type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    // Verify shared secret — reject requests that don't know the secret.
+    // Set this via: wrangler secret put RELAY_SECRET
+    // (or Cloudflare dashboard → Worker → Settings → Variables → encrypted)
+    if (env.RELAY_SECRET && request.headers.get('x-noutheo-secret') !== env.RELAY_SECRET) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
         headers: { 'content-type': 'application/json', ...corsHeaders }
       });
     }

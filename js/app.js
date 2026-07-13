@@ -87,8 +87,22 @@ const CHAT_TIPS_TEXT = `A few quick tips before you begin:
 
 Tap "Instructions" on the home screen anytime for a fuller guide.`;
 
+const PWA_CHANGELOG = `What's new in this update:
+
+• Automatic updates — from now on, new versions of Noutheo install themselves. Just open the app and you're always on the latest version. Nothing to tap, nothing to clear.
+
+• Check for Update button — you can also manually check for updates right from Settings anytime.
+
+• Longer conversations — the app now keeps more of your conversation history intact before compressing it, so Noutheo can follow along further back in long sessions.
+
+• Compaction notice — if a conversation does need to be compressed, Noutheo will let you know first and offer to write a full summary you can save to your Journal or Journal Vault.
+
+• Improved app stability and minor fixes.
+
+Soli Deo Gloria.`;
+
 let appState = {
-  settings: { name: '', theme: 'system', relay: '' },
+  settings: { name: '', theme: 'system', relay: '', relaySecret: '' },
   vaultKey: null, // CryptoKey, only held in memory while unlocked
 };
 
@@ -107,6 +121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindAddActionStepDialog();
   bindResources();
   bindSettings();
+  bindUpdateChecker();
   bindVault();
   bindOnboarding();
 
@@ -116,6 +131,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
+
+    // AUTO-UPDATE: when a new service worker takes over (a new version was
+    // just installed in the background), reload once so the user is
+    // immediately on the latest version. The sessionStorage guard prevents
+    // any possibility of a reload loop.
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (sessionStorage.getItem('noutheo-reloaded')) return;
+      sessionStorage.setItem('noutheo-reloaded', '1');
+      window.location.reload();
+    });
   }
 });
 
@@ -151,7 +176,8 @@ async function loadSettings() {
   const name = await DB.getSetting('userName', '');
   const theme = await DB.getSetting('theme', 'system');
   const relay = await DB.getSetting('relayUrl', '');
-  appState.settings = { name, theme, relay };
+  const relaySecret = await DB.getSetting('relaySecret', '');
+  appState.settings = { name, theme, relay, relaySecret };
 }
 
 function applyTheme() {
@@ -283,11 +309,13 @@ function bindSettings() {
   document.getElementById('settings-name').value = appState.settings.name;
   document.getElementById('settings-theme').value = appState.settings.theme;
   document.getElementById('settings-relay').value = appState.settings.relay;
+  document.getElementById('settings-relay-secret').value = appState.settings.relaySecret;
 
   document.getElementById('settings-save').addEventListener('click', async () => {
     const name = document.getElementById('settings-name').value.trim();
     const theme = document.getElementById('settings-theme').value;
     const relay = document.getElementById('settings-relay').value.trim();
+    const relaySecret = document.getElementById('settings-relay-secret').value.trim();
     if (!isAcceptableName(name)) {
       toast('Please enter a valid name.');
       return;
@@ -295,7 +323,8 @@ function bindSettings() {
     await DB.setSetting('userName', name);
     await DB.setSetting('theme', theme);
     await DB.setSetting('relayUrl', relay);
-    appState.settings = { name, theme, relay };
+    await DB.setSetting('relaySecret', relaySecret);
+    appState.settings = { name, theme, relay, relaySecret };
     applyTheme();
     toast('Settings saved.');
   });
@@ -322,6 +351,83 @@ function bindSettings() {
     chatMessages = [];
     renderChatMessages();
     toast('All data cleared.');
+  });
+}
+
+// ── CHECK FOR UPDATE ─────────────────────────────────────────────────────
+
+async function checkForUpdate() {
+  if (!('serviceWorker' in navigator)) {
+    toast('Service worker not supported on this browser.');
+    return;
+  }
+
+  toast('Checking for update…');
+
+  try {
+    // Fetch sw.js fresh from network to compare CACHE_NAME
+    const res = await fetch('sw.js?_=' + Date.now(), { cache: 'no-store' });
+    const text = await res.text();
+    const match = text.match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/);
+    if (!match) {
+      toast('Could not read update info. Try again later.');
+      return;
+    }
+    const latestCache = match[1];
+
+    // If the latest cache already exists locally, we're up to date
+    const existingCaches = await caches.keys();
+    if (existingCaches.includes(latestCache)) {
+      toast('You\'re already up to date.');
+      return;
+    }
+
+    // New cache name = real update available. Trigger SW update.
+    const reg = await navigator.serviceWorker.ready;
+
+    // Set up listener for the new worker BEFORE calling update()
+    const activated = new Promise((resolve) => {
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) { resolve(); return; }
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'activated') resolve();
+        });
+      }, { once: true });
+    });
+
+    await reg.update();
+
+    // Wait up to 15s for activation (sw.js already calls skipWaiting() on install)
+    await Promise.race([
+      activated,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
+    ]);
+
+    // Show update dialog with changelog
+    document.getElementById('update-changelog-text').textContent = PWA_CHANGELOG;
+    document.getElementById('dialog-update').showModal();
+
+  } catch (e) {
+    if (e.message === 'timeout') {
+      toast('Update downloaded. Reload the app to apply it.');
+    } else {
+      toast('Could not check for update. Make sure you\'re connected.');
+    }
+  }
+}
+
+function bindUpdateChecker() {
+  document.getElementById('settings-check-update').addEventListener('click', checkForUpdate);
+
+  document.getElementById('update-reload').addEventListener('click', () => {
+    document.getElementById('dialog-update').close();
+    window.location.reload();
+  });
+
+  document.getElementById('update-later').addEventListener('click', () => {
+    document.getElementById('dialog-update').close();
+    toast('Update ready. Reload the app when you\'re ready.');
   });
 }
 
@@ -495,7 +601,7 @@ async function requestAssistantReply() {
   }
 
   try {
-    const raw = await sendMessageToRelay(appState.settings.relay, apiMessages, systemPrompt);
+    const raw = await sendMessageToRelay(appState.settings.relay, apiMessages, systemPrompt, appState.settings.relaySecret);
     let text = raw;
     let ended = false;
     if (text.includes(END_SESSION_MARKER)) {

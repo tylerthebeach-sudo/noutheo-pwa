@@ -154,8 +154,13 @@
       <label>Relay URL (Cloudflare Worker)</label>
       <input type="text" id="settings-relay" placeholder="https://noutheo-relay.yoursubdomain.workers.dev">
     </div>
+    <div class="field">
+      <label>Relay Secret</label>
+      <input type="password" id="settings-relay-secret" placeholder="Your RELAY_SECRET value" autocomplete="off">
+    </div>
     <button class="btn btn-filled" id="settings-save">Save Settings</button>
-    <button class="btn" id="settings-clear-history" style="margin-top:24px;">Clear Conversation History</button>
+    <button class="btn" id="settings-check-update" style="margin-top:24px;">Check for Update</button>
+    <button class="btn" id="settings-clear-history" style="margin-top:8px;">Clear Conversation History</button>
     <button class="btn" id="settings-clear-all" style="margin-top:8px;color:var(--error);border-color:var(--error);">Clear All Data</button>
     <div class="card" style="margin-top:24px;">
       <strong>About Noutheo</strong>
@@ -186,6 +191,17 @@
   </section>
 
 </div>
+
+<dialog id="dialog-update">
+  <div class="dialog-inner">
+    <h2>Update Available</h2>
+    <div class="resources-text" id="update-changelog-text" style="font-size:13px;margin-bottom:16px;"></div>
+    <div class="dialog-actions">
+      <button id="update-later">Later</button>
+      <button id="update-reload">Reload Now</button>
+    </div>
+  </div>
+</dialog>
 
 <dialog id="dialog-name-prompt">
   <div class="dialog-inner">
