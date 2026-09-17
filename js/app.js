@@ -89,7 +89,9 @@ Tap "Instructions" on the home screen anytime for a fuller guide.`;
 
 const PWA_CHANGELOG = `What's new in this update:
 
-• Automatic updates — from now on, new versions of Noutheo install themselves. Just open the app and you're always on the latest version. Nothing to tap, nothing to clear.
+• Discernment model updated — refinements to how Noutheo listens and counsels.
+
+• Automatic updates — new versions of Noutheo install themselves. Just open the app and you're always on the latest version. Nothing to tap, nothing to clear.
 
 • Check for Update button — you can also manually check for updates right from Settings anytime.
 
